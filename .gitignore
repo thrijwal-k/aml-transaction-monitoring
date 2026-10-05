@@ -1,0 +1,6 @@
+data/*.csv
+outputs/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
