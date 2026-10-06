@@ -83,11 +83,12 @@ Tests: `python -m pytest -q`
 
 ## CI/CD and Docker
 
-Every push to `main` runs a GitHub Actions pipeline (`.github/workflows/ci.yml`) with three stages:
+Every push to `main` runs a GitHub Actions pipeline (`.github/workflows/ci.yml`) with four stages:
 
 1. **Test**: lint with Ruff, run the unit tests, then run the whole pipeline end to end on synthetic data and check that it produces its outputs.
 2. **Docker**: build the image, run the pipeline inside the container, then start the dashboard and wait for its health check to pass.
-3. **Publish**: if both earlier stages pass, push the image to GitHub Container Registry, tagged `latest` and with the commit hash.
+3. **Kubernetes**: create a local cluster with kind, deploy the manifests in `k8s/`, wait for the rollout, then check the dashboard's health through the Kubernetes Service.
+4. **Publish**: if every earlier stage passes, push the image to GitHub Container Registry, tagged `latest` and with the commit hash.
 
 Run it in Docker:
 
@@ -101,6 +102,19 @@ docker run --rm -p 8501:8501 -v "$PWD/outputs:/app/outputs" aml-monitoring
 
 The image runs as a non-root user and includes a health check on Streamlit's `/_stcore/health` endpoint.
 
+### Kubernetes
+
+`k8s/deployment.yaml` runs the pipeline once in an **init container**, which writes its results to a shared volume, then starts the dashboard from those results. The pod runs as a non-root user, and has readiness and liveness probes on the health endpoint plus CPU and memory requests and limits. `k8s/service.yaml` exposes the dashboard inside the cluster.
+
+```bash
+kind create cluster --name aml
+docker build -t aml-monitoring:ci .
+kind load docker-image aml-monitoring:ci --name aml
+kubectl apply -f k8s/
+kubectl rollout status deployment/aml-dashboard
+kubectl port-forward service/aml-dashboard 8080:80   # open http://localhost:8080
+```
+
 ## Project structure
 
 ```
@@ -113,7 +127,8 @@ src/rules.py         monitoring scenarios R1-R5 and per-rule performance
 tests/               unit tests for rules and features
 docs/dashboard.png   dashboard screenshot
 Dockerfile           container image for the pipeline and dashboard
-.github/workflows/   CI/CD pipeline: lint, test, Docker build, health check, publish
+.github/workflows/   CI/CD pipeline: lint, test, Docker, Kubernetes deploy, publish
+k8s/                 Kubernetes Deployment and Service
 ruff.toml            lint rules
 ```
 

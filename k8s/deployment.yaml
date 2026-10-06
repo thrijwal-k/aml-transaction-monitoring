@@ -1,0 +1,68 @@
+# Runs the pipeline once in an init container, then serves the dashboard from the results.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aml-dashboard
+  labels:
+    app: aml-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aml-dashboard
+  template:
+    metadata:
+      labels:
+        app: aml-dashboard
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      initContainers:
+        - name: generate-results
+          image: aml-monitoring:ci
+          imagePullPolicy: IfNotPresent
+          command: ["python", "run_pipeline.py", "--synthetic"]
+          volumeMounts:
+            - name: outputs
+              mountPath: /app/outputs
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      containers:
+        - name: dashboard
+          image: aml-monitoring:ci
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8501
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: outputs
+              mountPath: /app/outputs
+      volumes:
+        - name: outputs
+          emptyDir: {}

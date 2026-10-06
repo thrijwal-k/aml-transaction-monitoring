@@ -63,9 +63,49 @@ jobs:
           docker logs dash
           exit 1
 
+  kubernetes:
+    name: Deploy to Kubernetes (kind) and check health
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t aml-monitoring:ci .
+
+      - name: Create a local Kubernetes cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: aml
+
+      - name: Load the image into the cluster
+        run: kind load docker-image aml-monitoring:ci --name aml
+
+      - name: Deploy
+        run: |
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/aml-dashboard --timeout=300s
+
+      - name: Check the dashboard is healthy through the Service
+        run: |
+          kubectl port-forward service/aml-dashboard 8080:80 > /tmp/port-forward.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8080/_stcore/health; then echo " dashboard healthy in Kubernetes"; exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Show cluster state if anything failed
+        if: failure()
+        run: |
+          kubectl get pods -o wide
+          kubectl describe pods -l app=aml-dashboard
+          kubectl logs -l app=aml-dashboard -c generate-results --tail=50 || true
+          kubectl logs -l app=aml-dashboard -c dashboard --tail=50 || true
+
   publish:
     name: Publish image to GitHub Container Registry
-    needs: docker
+    needs: [docker, kubernetes]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
