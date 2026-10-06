@@ -108,13 +108,15 @@ with tab_rules:
     fig = px.scatter(rules, x="recall", y="precision", size="alerts", text="scenario", size_max=40,
                      title="Precision against recall by scenario (bubble size = alert volume)")
     fig.update_traces(textposition="top center")
-    fig.update_xaxes(range=[-0.05, 1.1]); fig.update_yaxes(range=[-0.05, 1.1])
+    fig.update_xaxes(range=[-0.05, 1.1])
+    fig.update_yaxes(range=[-0.05, 1.1])
     st.plotly_chart(fig, width="stretch")
 
 with tab_model:
     left, right = st.columns(2)
     fig = px.line(pr, x="recall", y="precision", title="Precision-recall curve (test period)")
-    fig.update_xaxes(range=[0, 1.02]); fig.update_yaxes(range=[0, 1.02])
+    fig.update_xaxes(range=[0, 1.02])
+    fig.update_yaxes(range=[0, 1.02])
     left.plotly_chart(fig, width="stretch")
     fig = px.bar(imp.head(10).iloc[::-1], x="gain", y="label", orientation="h", title="What drives the risk score")
     right.plotly_chart(fig, width="stretch")

@@ -53,12 +53,12 @@ def add_features(df: pd.DataFrame) -> pd.DataFrame:
     key = d["amount"].round(2)
     tr = pd.DataFrame({"k": key[d["type"] == "TRANSFER"], "s": d.loc[d["type"] == "TRANSFER", "step"]})
     co = pd.DataFrame({"k": key[d["type"] == "CASH_OUT"], "s": d.loc[d["type"] == "CASH_OUT", "step"]})
-    tr_keys = set(zip(tr["k"], tr["s"])) | set(zip(tr["k"], tr["s"] + 1))
-    co_keys = set(zip(co["k"], co["s"])) | set(zip(co["k"], co["s"] - 1))
+    tr_keys = set(zip(tr["k"], tr["s"], strict=True)) | set(zip(tr["k"], tr["s"] + 1, strict=True))
+    co_keys = set(zip(co["k"], co["s"], strict=True)) | set(zip(co["k"], co["s"] - 1, strict=True))
     is_tr = (d["type"] == "TRANSFER").to_numpy()
-    pairs = list(zip(key.to_numpy(), d["step"].to_numpy()))
+    pairs = list(zip(key.to_numpy(), d["step"].to_numpy(), strict=True))
     d["matched_pass_through"] = np.fromiter(
-        ((p in co_keys) if t else (p in tr_keys) for p, t in zip(pairs, is_tr)), dtype=bool, count=len(d)
+        ((p in co_keys) if t else (p in tr_keys) for p, t in zip(pairs, is_tr, strict=True)), dtype=bool, count=len(d)
     ).astype("int8")
 
     # Receiver behaviour within the same day (a daily monitoring batch)

@@ -29,8 +29,10 @@ BALANCE_FEATURES = ["orig_balance_error", "dest_balance_error", "dest_zero_balan
 
 
 def binary_metrics(y: np.ndarray, flag: np.ndarray) -> dict:
-    tp = int((flag & (y == 1)).sum()); fp = int((flag & (y == 0)).sum())
-    fn = int((~flag & (y == 1)).sum()); tn = int((~flag & (y == 0)).sum())
+    tp = int((flag & (y == 1)).sum())
+    fp = int((flag & (y == 0)).sum())
+    fn = int((~flag & (y == 1)).sum())
+    tn = int((~flag & (y == 0)).sum())
     return {
         "alerts": tp + fp, "true_positives": tp, "false_positives": fp, "missed_fraud": fn,
         "recall": tp / (tp + fn) if tp + fn else 0.0,

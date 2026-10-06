@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, test and pipeline smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt ruff==0.16.10
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+      - name: End-to-end smoke test on synthetic data
+        run: |
+          python run_pipeline.py --synthetic
+          python report.py
+          test -s outputs/metrics.json
+          test -s outputs/alerts.csv
+
+  docker:
+    name: Build image and check the dashboard starts
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t aml-monitoring:ci .
+
+      - name: Run the pipeline inside the container
+        run: |
+          mkdir -p outputs && chmod 777 outputs
+          docker run --rm -v "$PWD/outputs:/app/outputs" aml-monitoring:ci python run_pipeline.py --synthetic
+          test -s outputs/metrics.json
+
+      - name: Start the dashboard and check it is healthy
+        run: |
+          docker run -d --name dash -p 8501:8501 -v "$PWD/outputs:/app/outputs" aml-monitoring:ci
+          for i in $(seq 1 30); do
+            if curl -fs http://localhost:8501/_stcore/health; then echo " dashboard healthy"; exit 0; fi
+            sleep 2
+          done
+          docker logs dash
+          exit 1
+
+  publish:
+    name: Publish image to GitHub Container Registry
+    needs: docker
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        run: |
+          IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}
+          docker build -t "$IMAGE:latest" -t "$IMAGE:${GITHUB_SHA::7}" .
+          docker push "$IMAGE:latest"
+          docker push "$IMAGE:${GITHUB_SHA::7}"

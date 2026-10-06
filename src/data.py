@@ -64,7 +64,8 @@ def make_synthetic(n_tx: int = 300_000, fraud_rate: float = 0.0013, seed: int = 
     n_pairs = int(n_legit * 0.004)
     i_tr = rng.choice(np.where(t == "TRANSFER")[0], n_pairs, replace=False)
     i_co = rng.choice(np.where(t == "CASH_OUT")[0], n_pairs, replace=False)
-    amount[i_co] = amount[i_tr]; step[i_co] = step[i_tr]
+    amount[i_co] = amount[i_tr]
+    step[i_co] = step[i_tr]
     new_o[i_co] = np.maximum(old_o[i_co] - amount[i_co], 0)
     legit = pd.DataFrame({
         "step": step, "type": t, "amount": amount, "nameOrig": orig,
